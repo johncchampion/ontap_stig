@@ -1189,7 +1189,7 @@ For ( $i=0; $i -lt $total_count; $i++ ) {
                             $_service = ($service_rule[0]).Trim()
                             $_rule    = ($service_rule[1]).Trim()
 
-                            if ($data_protocol_services.Contains($_service)) {
+                            if ( $data_protocol_services.Contains($_service) -or ($curr_svm -eq 'Cluster' -and $curr_policy -eq 'default-cluster') ) {
 
                                 # ONTAP is unable to perform packet filtering based on the source address for data protocols
 
@@ -1234,13 +1234,14 @@ For ( $i=0; $i -lt $total_count; $i++ ) {
 
                     # https://kb.netapp.com/onprem/ontap/os/Unable_to_create_a_service_policy_to_limit_data_access_using_the_allowed-addresses_option
 
-                    $f_comments  = "ONTAP is unable to perform packet filtering based on the source address for data protocols `n"
+                    $f_comments  = "ONTAP is unable to perform packet filtering based on the source address for data protocols and vServer Cluster / default-cluster Service Policy `n"
                     $f_comments += "A physical or virtual firewall should be used if packet filtering for data protocols is needed`n`n"
                     $f_comments += "Data Protocol Services Include:"
 
                     foreach ($dps In $data_protocol_services) {
                         $f_comments += "`n - $dps"
                     }
+                    $f_comments += "`n`nCluster Services Include:`n - default-cluster : cluster-core"
 
                     $f_comments += "`n`nRef: https://kb.netapp.com/onprem/ontap/os/Unable_to_create_a_service_policy_to_limit_data_access_using_the_allowed-addresses_option"
 

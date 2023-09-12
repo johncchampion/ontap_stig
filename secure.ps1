@@ -956,23 +956,36 @@ $vResult = Invoke-ONTAP -Method Get -URL $vUrl
 
 foreach ($rec IN $vResult.records) {
 
+    $allowed_addresses = @()
+
     $curr_svm = $rec.vserver
-    $curr_lif = $rec.lif
+    #$curr_lif = $rec.lif
     $curr_policy = $rec.service_policy
     $curr_address = $rec.address
     $curr_netmask_length = $rec.netmask_length
 
-    # IP address rule to apply
+    $ipsections = $curr_address.Split('.')
 
-    if ( $service_policies -eq 'filter') {
+    if ($service_policies -eq 'filter') {
 
-        $ipsections = $curr_address.Split('.')
-        $allowed_addresses = $ipsections[0] + '.' + $ipsections[1] + '.0.0/16'
+        if ($curr_netmask_length -lt 16) {
+
+            $allowed_addresses += "$($ipsections[0]).0.0.0/8"
+
+        } elseif ($curr_netmask_length -lt 24) {
+
+            $allowed_addresses += "$($ipsections[0]).$($ipsections[1]).0.0/16"
+
+        } else {
+
+            $allowed_addresses += "$($ipsections[0]).$($ipsections[1]).$($ipsections[2]).0/24"
+
+        }
 
     } else {
 
-        $allowed_addresses = '0.0.0.0/0'
-    
+        $allowed_addresses += '0.0.0.0/0'
+
     }
 
     # Get the service policy settings associated with the current LIF
@@ -988,31 +1001,7 @@ foreach ($rec IN $vResult.records) {
             $service_rule = $rec3.Split(':')
 
             $_service = ($service_rule[0]).Trim()
-            $_rule = ($service_rule[1]).Trim()
-
-            if ($service_policies -eq 'filter') {
-
-                # Cluster IP {###.###.0.0}/16
-
-                $ipsections = $curr_address.Split('.')
-                $allowed_addresses = $ipsections[0] + '.' + $ipsections[1] + '.0.0/16'
-                $allowed_addresses = @("$allowed_addresses")
-
-                # Intracluster {169.254.0.0/16}
-
-                if ($curr_svm -eq 'Cluster') {
-
-                    $allowed_addresses = @("169.254.0.0/16")
-
-                } 
-
-            } else {
-
-                # Unfilter - Allow All IP Addresses
-
-                $allowed_addresses = @("0.0.0.0/0")
-
-            }
+            #$_rule = ($service_rule[1]).Trim()
 
             $vBody = @{
                 "allowed-addresses" = $allowed_addresses
