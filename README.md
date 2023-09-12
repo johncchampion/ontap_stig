@@ -1,4 +1,4 @@
-## **ONTAP 9 Cluster Security & STIG Compliance Checklist**
+## **ONTAP 9 Security & STIG Compliance Checklist**
 
 * [Description](#Description)
 * [Requirements](#Requirements)
