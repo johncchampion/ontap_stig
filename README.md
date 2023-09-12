@@ -1,4 +1,4 @@
-## **ONTAP 9 Cluster Configuration & Cloud Tier to StorageGRID**
+## **ONTAP 9 Cluster Security & STIG Compliance Checklist**
 
 * [Description](#Description)
 * [Requirements](#Requirements)
