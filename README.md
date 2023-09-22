@@ -132,11 +132,8 @@ Local Admin Account
 Default Admin Account
 </i>
 "]]
-T5[["<b>Security Hardening Guide</b>
-<i>...in development...</i>
-"]]
 T99(Done)
-V1 --> T1 --> T2 --> T3 --> T4 --> T5 --> T99
+V1 --> T1 --> T2 --> T3 --> T4 --> T99
 
 ```
 <hr>
