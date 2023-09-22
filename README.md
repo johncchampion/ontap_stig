@@ -12,7 +12,7 @@
 
 ### **Description**
 * This is a set of PowerShell v7 scripts to apply security-related settings (`secure.ps1`), and complete a STIG Compliance checklist (`stig.ps1`)
-* A set of .INI files provide the necessary parameters to configure the cluster, events, cloud tiering, security settings, and STIG checks
+* A set of .INI files provide the necessary parameters to configure the cluster security settings, and STIG checks
 * The scripts are idempotent and can be re-executed without any 'known' issues
 <hr>
 
