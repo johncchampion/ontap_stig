@@ -263,13 +263,13 @@ if (!(Test-Path $StigFile)){
 
 # Check for blank checklist / template
 
-if (Test-Path -Path "$PSScriptRoot/ontapstig.ckl") {
+if (Test-Path -Path "$PSScriptRoot/stig.ckl") {
 
-    [xml]$checklist = Get-Content -Path "$PSScriptRoot/ontapstig.ckl"
+    [xml]$checklist = Get-Content -Path "$PSScriptRoot/stig.ckl"
 
 } else { 
 
-    Write-Host "EXIT - Cannot find $PSScriptRoot/ontapstig.ckl file"
+    Write-Host "EXIT - Cannot find $PSScriptRoot/stig.ckl file"
     Write-Host
 
     exit
@@ -280,7 +280,7 @@ if (Test-Path -Path "$PSScriptRoot/ontapstig.ckl") {
 
 # Check for subfolder to store checklists / create if missing
 
-$resultpath = "$PSScriptRoot/ontap_stig_findings"
+$resultpath = "$PSScriptRoot/stig_findings"
 
 if (!(Test-Path $resultpath)){
 
