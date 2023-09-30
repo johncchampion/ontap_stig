@@ -2,12 +2,10 @@
 
 <#
         .SYNOPSIS
-        Applies security-related settings based on an input file (secure_???.ini).  Security settings are based on the DISA ONTAP STIG v1r3 and the 
-        NetApp Security Hardening Guide.
+        Applies security-related settings based on an input file {secure}.ini. Security settings are based on DISA ONTAP STIG v1r3.
 
         .DESCRIPTION
-        Applies security-related settings based on an input file (secure_???.ini).  Security settings are based on the DISA ONTAP STIG v1r3 and the 
-        NetApp Security Hardening Guide. 
+        Applies security-related settings based on an input file {secure}.ini. Security settings are based on DISA ONTAP STIG v1r3.
 
 		See 'secure_template.ini' for details on the parameters 
 
