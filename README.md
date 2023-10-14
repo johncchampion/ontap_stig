@@ -75,12 +75,12 @@
 14. On-Demand Cluster Configuration Backup
 15. Service Policies (Packet Filtering)
 16. Add Domain Accounts with Admin Role
-17. Enable & Configure SNMP
-18. Set Password Complexity Minimums
-19. Enable/Disable FIPS 140-2
+17. Enable/Disable FIPS 140-2
+18. Enable & Configure SNMP
+19. Set Password Complexity Minimums
 20. Create Account of Last Resort (1 Local Admin Account)
 21. Check if Reboot Required
-22. Lock / Unlock Default admin Account
+22. Lock / Unlock Default `admin` Account
 
 **<u>stig.ps1</u>**
 
