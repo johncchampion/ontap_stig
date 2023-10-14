@@ -126,8 +126,9 @@ Time Zone
 Multifactor Authentication
 Configuration Backups
 Service Policies (Packet Filtering)
-Password Complexity
 FIPS 140-2
+Enable & Configure SNMP
+Password Complexity
 Local Admin Account
 Default Admin Account
 </i>
