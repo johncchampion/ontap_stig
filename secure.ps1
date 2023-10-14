@@ -27,9 +27,9 @@
         14. On-Demand Cluster Configuration Backup                      [Config Backup        ]
         15. Service Policies (Packet Filtering)                         [Service Policies     ]
         16. Add Domain Accounts with Admin Role                         [Domain Accounts      ]
-        17. Enable & Configure SNMP                                     [Configure SNMP       ]
-        18. Set Password Complexity Minimums                            [Password Complexity  ]
-        19. Enable/Disable FIPS 140-2                                   [FIPS 140-2           ]
+        17. Enable/Disable FIPS 140-2                                   [FIPS 140-2           ]        
+        18. Enable & Configure SNMP                                     [Configure SNMP       ]
+        19. Set Password Complexity Minimums                            [Password Complexity  ]
         20. Create Account of Last Resort (1 Local Admin Account)       [Local Admin          ]
         21. Check if Reboot Required
         22. Lock / Unlock Default admin Account                         [Default Admin Account]
@@ -63,7 +63,7 @@ param (
 # -------------------- TODO LIST --------------------
 
 # Verify .INI settings
-# Configure Auditing / SNMP server (Audit Guarantee)
+# Configure Auditing (Audit Guarantee)
 # Check if only 1 local admin account before locking
 # V-246933 : ONTAP must allocate audit record storage capacity in accordance with organization-defined audit record storage requirements
 
@@ -201,12 +201,23 @@ $service_policies    = ($config["SECURITY"]).service_policies
 $ntp_servers = (($config["NTP"]).ntp_servers).Split(',')
 $ntp_keys    = (($config["NTP"]).ntp_keys).Split(',')
 
-# SNMP
+# SNMP v1/v2
 
-$snmp_enable  = Get-TrueFalse -YesNo (($config["SNMP"]).snmp_enable)
-$traps_enable = Get-TrueFalse -YesNo (($config["SNMP"]).traps_enable)
-$trap_host    = ($config["SNMP"]).trap_host
-$snmp_version = ($config["SNMP"]).snmp_version
+$snmp_enable    = Get-TrueFalse -YesNo (($config["SNMP"]).snmp_enable)
+$traps_enable   = Get-TrueFalse -YesNo (($config["SNMP"]).traps_enable)
+$trap_host      = ($config["SNMP"]).trap_host
+$snmp_community = ($config["SNMP"]).community
+
+if ($snmp_community.Length -eq 0) { $snmp_community = 'public'}
+
+# SNMP v3
+
+$snmpv3_host          = ($config["SNMPV3"]).snmpv3_host
+$usm_user_name        = ($config["SNMPV3"]).usm_user_name
+$usm_auth_password    = ($config["SNMPV3"]).usm_auth_password
+$usm_auth_protocol    = ($config["SNMPV3"]).usm_auth_protocol
+$usm_privacy_password = ($config["SNMPV3"]).usm_privacy_password
+$usm_privacy_protocol = ($config["SNMPV3"]).usm_privacy_protocol
 
 # PASSWORDCOMPLEXITY
 
@@ -816,8 +827,7 @@ if ($vResult) {
             }
         }
 
-        $vUrl = $apiUri + "/svm/svms
-        "
+        $vUrl = $apiUri + "/svm/svms"
         $body = $vBody | ConvertTo-Json -Depth 5
 
         $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
@@ -1112,53 +1122,6 @@ if ($domain_tunnel) {
 
 }
 
-# -------------------- STIG V-246949 : Enable & Configure SNMP --------------------
-
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
-
-Write-Host -ForegroundColor Cyan " SNMP`t`t`t" -NoNewline
-
-$vUrl = $apiUri + '/support/snmp'
-
-$vBody = @{
-    enabled = $snmp_enable
-    traps_enabled = $traps_enable
-}
-
-$body = $vBody | ConvertTo-Json -Depth 5
-
-$vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
-
-Write-Host -ForegroundColor White "Enabled: $snmp_enable   Traps: $traps_enable"
-
-# Configue SNMP Server
-
-
-
-# -------------------- STIG V-246951-V-246955 : Password Complexity --------------------
-
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
-
-Write-Host -ForegroundColor Cyan " Password Complexity `t" -NoNewline
-
-$vUrl = $apiUri + "/private/cli/security/login/role/config?role=admin"
-
-$vBody = @{
-    passwd_alphanum = $alphanum
-    passwd_minlength = $minlength
-    passwd_min_special_chars = $minspecial
-    passwd_min_lowercase_chars = $minlowercase
-    passwd_min_uppercase_chars = $minuppercase
-}
-
-$body = $vBody | ConvertTo-Json -Depth 5
-
-$vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
-
-Write-Host -ForegroundColor White "APPLIED"
-
 # -------------------- STIG V-246958 : Enable/Disable FIPS 140-2 --------------------
 
 $inc++
@@ -1166,13 +1129,13 @@ Write-Host -ForegroundColor Gray " $inc." -NoNewline
 
 Write-Host -ForegroundColor Cyan " FIPS 140-2     `t`t" -NoNewline
 
+$body = ''
+
 # Get Current FIPS Setting
 
 $vUrl = $apiUri + "/security?fields=fips.enabled"
 
 $vResult = Invoke-ONTAP -Method Get -URL $vUrl
-
-$body = ''
 
 if ($vResult.fips.enabled) {
 
@@ -1208,14 +1171,6 @@ if ($body -ne '') {
 
     $vUrl = $apiUri + "/security"
 
-    $vBody = @{
-        fips = @{
-            enabled = $true
-        }
-    }
-
-    $body = $vBody | ConvertTo-Json -Depth 5
-
     $vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
 
     # Monitor Job
@@ -1238,7 +1193,7 @@ if ($body -ne '') {
 
         } elseif ($jobResult.state -eq 'success') {
 
-            Write-Host -ForegroundColor White "$msg"
+            Write-Host -ForegroundColor Green "$msg"
 
             $pause = 1
             $more = $false
@@ -1253,9 +1208,230 @@ if ($body -ne '') {
 
 } else {
 
-    Write-Host -ForegroundColor White "$msg"
+    Write-Host -ForegroundColor Green "$msg"
 
 }
+
+# -------------------- STIG V-246949 : Enable & Configure SNMP --------------------
+
+$inc++
+Write-Host -ForegroundColor Gray " $inc." -NoNewline
+
+Write-Host -ForegroundColor Cyan " SNMP`t`t`t" -NoNewline
+
+$vUrl = $apiUri + '/support/snmp'
+
+$vBody = @{
+    enabled = $snmp_enable
+    traps_enabled = $traps_enable
+}
+
+$body = $vBody | ConvertTo-Json -Depth 5
+
+$vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
+
+Write-Host -ForegroundColor White "Enabled: $snmp_enable   Traps: $traps_enable"
+
+# Get Current FIPS 140-2 Setting
+
+$vUrl = $apiUri + "/security?fields=fips.enabled"
+
+$vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+$fips_state = $vResult.fips.enabled
+
+# Check SNMPv3 Settings
+
+if (($snmpv3_host.Length -eq 0) -or ($usm_user_name.Length -eq 0) -or ($usm_auth_password.Length -lt 8) -or ($usm_privacy_password.Length -lt 8)) {
+
+    $snmpv3 = $false
+
+} else {
+
+    $snmpv3 = $true
+
+}
+
+# Check SNMP Settings
+
+if (($trap_host.Length -eq 0) -or ($fips_state)) {
+
+    $snmp = $false
+
+} else {
+
+    $snmp = $true
+}
+
+# If both TRUE, default to SNMP v3
+
+if ($snmp -and $snmpv3) { 
+    
+    $snmp = $false 
+
+}
+
+# Configue SNMP Server
+
+$inc++
+Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Cyan " Configure SNMP`t`t" -NoNewline
+
+if ($snmp_enable -and $traps_enable ) {
+
+    if ($snmpv3) {
+
+        # Create USM Account
+
+        $vUrl = $apiUri + "/support/snmp/users?name=$usm_user_name&authentication_method=usm&return_records=false"
+
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        if ($vResult.num_records -eq 0) {
+
+            $vUrl = $apiUri + "/support/snmp/users"
+
+            $vBody = @{
+                authentication_method = "usm"
+                name = "$usm_user_name"
+                owner = @{
+                    name = "$ClusterName"
+                }
+                snmpv3 = @{
+                    authentication_password = "$usm_auth_password"
+                    authentication_protocol = "sha2_256"
+                    privacy_password = "$usm_privacy_password"
+                    privacy_protocol = "aes128"
+                }
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+        }
+
+        # Configure SNMPv3
+
+        $vUrl = $apiUri + "/support/snmp/traphosts?host=$snmpv3_host&return_records=false"
+
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        if ($vResult.num_records -eq 0) {
+
+            $vUrl = $apiUri + "/support/snmp/traphosts"
+
+            $vBody = @{
+                host = $snmpv3_host
+                user = @{
+                    name = $usm_user_name
+                }
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+            Write-Host -ForegroundColor Green "SNMPv3 Configured ($snmpv3_host)"
+
+        } else {
+
+            Write-Host -ForegroundColor Yellow "SNMPv3 ($snmpv3_host) Exists"
+
+        }
+
+    } 
+    
+    if ($snmp) {
+
+        # Community Name
+
+        $vUrl = $apiUri + "/private/cli/system/snmp/community?community-name=$snmp_community&return_records=false"
+
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        if ($vResult.num_records -eq 0) {
+
+            $vUrl = $apiUri + "/private/cli/system/snmp/community/add"
+
+            $vBody = @{
+                community_name = $snmp_community
+                type = "ro"
+                vserver = "$ClusterName"
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+        }
+
+        $vUrl = $apiUri + "/support/snmp/traphosts?host=$trap_host"
+
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        if ($vResult.num_records -eq 0) {
+
+            # Trap Host
+
+            $vBody = @{
+                host = $trap_host
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vUrl = $apiUri + "/support/snmp/traphosts"
+
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+            Write-Host -ForegroundColor Green "SNMP Trap Host ($trap_host) Added"
+
+        } else {
+
+            Write-Host -ForegroundColor Yellow "SNMP Trap Host ($trap_host) Exists"
+
+        } else {
+
+            Write-Host -ForegroundColor Yellow "SNMP Trap Host Not Provided"
+
+        }
+
+    }
+
+    if ( (!($snmp)) -and (!($snmpv3)) ) {
+
+        Write-Host -ForegroundColor Yellow "Missing or Invalid Settings"
+
+    }
+
+} else {
+
+    Write-Host -ForegroundColor Red "Not Enabled"
+
+}
+
+# -------------------- STIG V-246951-V-246955 : Password Complexity --------------------
+
+$inc++
+Write-Host -ForegroundColor Gray " $inc." -NoNewline
+
+Write-Host -ForegroundColor Cyan " Password Complexity `t" -NoNewline
+
+$vUrl = $apiUri + "/private/cli/security/login/role/config?role=admin"
+
+$vBody = @{
+    passwd_alphanum = $alphanum
+    passwd_minlength = $minlength
+    passwd_min_special_chars = $minspecial
+    passwd_min_lowercase_chars = $minlowercase
+    passwd_min_uppercase_chars = $minuppercase
+}
+
+$body = $vBody | ConvertTo-Json -Depth 5
+
+$vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
+
+Write-Host -ForegroundColor White "APPLIED"
 
 # -------------------- STIG V-246926 : Account of Last Resort (Local Admin Account) --------------------
 
