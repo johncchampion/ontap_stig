@@ -40,11 +40,11 @@
 ### **Examples**
 * Apply security settings and configurations 
 
-          PS C:\scripts ./secure.ps1 -SecureFile secure1.ini -ClusterIP 10.0.0.10 -Login admin
+          PS C:\scripts > ./secure.ps1 -SecureFile secure1.ini -ClusterIP 10.0.0.10 -Login admin
 
 * Perform an ONTAP STIG compliance check
 
-          PS C:\scripts ./stig.ps1 -StigFile stig1.ini -ClusterIP 10.0.0.10 -Login admin
+          PS C:\scripts > ./stig.ps1 -StigFile stig1.ini -ClusterIP 10.0.0.10 -Login admin
           
 * The .INI files can be in any path
 
