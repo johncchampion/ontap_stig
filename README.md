@@ -48,8 +48,8 @@
           
 * The .INI files can be in any path
 
-          PS C:\scripts ./secure.ps1   -SecureFile ./secure/secure1.ini -ClusterIP 10.0.0.10 -Login admin
-          PS C:\scripts > ./stig.ps1   -StigFile   ./stigs/stig1.ini -ClusterIP 10.0.0.10 -Login admin
+          PS C:\scripts > ./secure.ps1 -SecureFile ./secure/secure1.ini -ClusterIP 10.0.0.10 -Login admin
+          PS C:\scripts > ./stig.ps1   -StigFile   ./stigs/stig1.ini    -ClusterIP 10.0.0.10 -Login admin
 
 <hr>
 
