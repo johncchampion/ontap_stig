@@ -101,7 +101,7 @@
 12. If 'override_status' is BLANK, then run the compliance check
 12. Update the new checklist with the result (Open, Not A Finding, Not Applicable, Not Reviewed) along with any Details or Comments
 13. Once all vulnerabilities have been processed - save/close the new checklist
-14. Screen output shows the name of the saved checklist - ontapstig_{clustername}_YYYYMMDD.ckl and totals for each type of finding.
+14. Screen output shows the name of the saved checklist - ontapstig_{clustername}_YYYY_MM_DD.ckl and totals for each type of finding.
 15. To view the completed checklist, use the DISA STIG Viewer
 
 <hr>
