@@ -810,69 +810,73 @@ For ( $i=0; $i -lt $total_count; $i++ ) {
 
             'V-246935' {
 
-                # Check for SMB SVMs
+                # Get SVMs
 
-                $vUrl = $apiUri + '/svm/svms?cifs.enabled=true'
+                $vUrl = $apiUri + '/svm/svms?fields=cifs.enabled,nfs.enabled'
 
                 $vResult = Invoke-ONTAP -Method Get -URL $vUrl
 
-                # If any SMB SVMs ...
+                $nas_count = 0
 
-                if ($vResult.num_records -gt 0) {
+                $svm_audit_false = @()
 
-                    $svm_audit_false = @()
+                # Check each NAS SVM if an audit guarantee is set to 'false'
 
-                    # Check each SVM if an audit guarantee is set to 'false'
+                foreach ($svm IN $vResult.records) {
 
-                    foreach ($svm IN $vResult.records) {
+                    if ($svm.cifs.enabled -or $svm.nfs.enabled) {
 
-                            $vUrl2 = $apiUri + "/private/cli/vserver/audit?audit-guarantee=false&vserver=$($svm.name)"
+                        $vUrl2 = $apiUri + "/private/cli/vserver/audit?audit-guarantee=false&vserver=$($svm.name)"
 
-                            $vResult2 = Invoke-ONTAP -Method Get -URL $vUrl2
+                        $vResult2 = Invoke-ONTAP -Method Get -URL $vUrl2
 
-                            # If found, save SVM name to array to add to 'Details' in checklist
+                        # If found, save SVM name to array to add to 'Details' in checklist
 
-                            if ($vResult2.num_records -gt 0) {
+                        if ($vResult2.num_records -gt 0) {
 
-                                if ($svm.audit_guarantee -eq $false) {
-                                    $svm_audit_false += $svm.name
-                                }
-
+                            if ($svm.audit_guarantee -eq $false) {
+                                $svm_audit_false += $svm.name
                             }
 
-                    }
-
-                    # If any SMB SVMs were found with audit guarantee false ...
-
-                    if ($svm_audit_false.Count -gt 0) {
-
-                        Write-Host -ForegroundColor Gray " OPEN: SMB SVMs Found with Audit Guarantee False"
-
-                        $f_status = 'Open'
-                        $f_details = 'SMB SVMs Found with Audit Guarantee False'
-
-                        foreach ($svmaudit IN $svm_audit_false) {
-                            $f_details += "`n- $svmaudit"
                         }
 
-                        $f_comments = ""
-
-                    } else {
-
-                        Write-Host -ForegroundColor Green " NOT A FINDING"
-
-                        $f_status = "NotAFinding"
-                        $f_details = "SMB SVMs have Audit Guarantee Set to True"
-                        $f_comments = ""
+                        $nas_count++
 
                     }
+
+                }
+
+                # If any NAS SVMs were found with audit guarantee false ...
+
+                if ($svm_audit_false.Count -gt 0) {
+
+                    Write-Host -ForegroundColor Gray " OPEN: NAS SVMs Found with Audit Guarantee False"
+
+                    $f_status = 'Open'
+                    $f_details = 'NAS SVMs Found with Audit Guarantee False'
+
+                    foreach ($svmaudit IN $svm_audit_false) {
+                        $f_details += "`n- $svmaudit"
+                    }
+
+                    $f_comments = ""
 
                 } else {
 
-                    Write-Host -ForegroundColor Yellow " NOT APPLICABLE: No SVMs with SMB Protocol Enabled"
+                    Write-Host -ForegroundColor Green " NOT A FINDING"
+
+                    $f_status = "NotAFinding"
+                    $f_details = "NAS SVMs have Audit Guarantee Set to True"
+                    $f_comments = ""
+
+                }
+
+                if ($nas_count -eq 0) {
+
+                    Write-Host -ForegroundColor Yellow " NOT APPLICABLE: No SVMs with NAS Protocols Enabled"
 
                     $f_status = "Not_Applicable"
-                    $f_details = "No SVMs with SMB Protocol Enabled"
+                    $f_details = "No SVMs with NAS Protocols Enabled"
                     $f_comments = ""
 
                 }
