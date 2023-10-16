@@ -21,18 +21,20 @@
         8. Configure Audit Account-enabling actions                     [Cluster Logging      ]
         9. Set Consecutive Failed Logon Attempts                        [Login Attempts       ]
         10. Set Banner & Message of the Day for Cluster and SVMs        [Banner & MOTD        ]
-        11. Add NTP Servers                                             [NTP Servers          ]
-        12. Set Time Stamp for Audit Records (UTC/GMT)                  [Time Zone            ]
-        13. Configure MultiFactor Authentication                        [MultiFactor Auth     ]
-        14. On-Demand Cluster Configuration Backup                      [Config Backup        ]
-        15. Service Policies (Packet Filtering)                         [Service Policies     ]
-        16. Add Domain Accounts with Admin Role                         [Domain Accounts      ]
-        17. Enable/Disable FIPS 140-2                                   [FIPS 140-2           ]        
-        18. Enable & Configure SNMP                                     [Configure SNMP       ]
-        19. Set Password Complexity Minimums                            [Password Complexity  ]
-        20. Create Account of Last Resort (1 Local Admin Account)       [Local Admin          ]
-        21. Check if Reboot Required
-        22. Lock / Unlock Default admin Account                         [Default Admin Account]
+        11. ONTAP Audit Protocols                                       [ONTAP Audit          ]
+        12. SVM Audit Configuration (NAS SVMs)                          [SVM Audit - SMB/NFS  ]
+        13. Add NTP Servers                                             [NTP Servers          ]
+        14. Set Time Stamp for Audit Records (UTC/GMT)                  [Time Zone            ]
+        15. Configure MultiFactor Authentication                        [MultiFactor Auth     ]
+        16. On-Demand Cluster Configuration Backup                      [Config Backup        ]
+        17. Service Policies (Packet Filtering)                         [Service Policies     ]
+        18. Add Domain Accounts with Admin Role                         [Domain Accounts      ]
+        19. Enable/Disable FIPS 140-2                                   [FIPS 140-2           ]        
+        20. Enable & Configure SNMP                                     [Configure SNMP       ]
+        21. Set Password Complexity Minimums                            [Password Complexity  ]
+        22. Create Account of Last Resort (1 Local Admin Account)       [Local Admin          ]
+        23. Check if Reboot Required
+        24. Lock / Unlock Default admin Account                         [Default Admin Account]
 
         .PARAMETER SecureFile
         The {configuration}.ini file that contains settings for each specific STIG and Hardening Guide item.
@@ -63,9 +65,7 @@ param (
 # -------------------- TODO LIST --------------------
 
 # Verify .INI settings
-# Configure Auditing (Audit Guarantee)
 # Check if only 1 local admin account before locking
-# V-246933 : ONTAP must allocate audit record storage capacity in accordance with organization-defined audit record storage requirements
 
 # -------------------- Functions --------------------
 
@@ -166,7 +166,38 @@ function Get-TrueFalse {
     }
 
 }
+function Convert-UnitsToBytes {
+    [cmdletbinding()]
+    param (
+        [Parameter(Mandatory = $True)]
+        [uint64]$Size,
+        [Parameter(Mandatory = $True)]
+	    [ValidateSet('MB', 'GB', 'TB')]$Unit
+    )
 
+    # Converts BYTES to a specified UNIT (MB|GB|TB)
+    #   - Any other Unit will return the original value passed in
+
+    $Unit = $Unit.ToUpper()
+
+    switch ($Unit) {
+        'MB' {
+            $bytes = $size * 1MB
+        }
+        'GB' {
+            $bytes = $size * 1GB
+        }
+        'TB' {
+            $bytes = $size * 1TB
+        }
+        Default {
+            $bytes = $size
+        }
+    }
+
+    return $bytes
+
+}
 # -------------------- Test for configuration file --------------------
 
 if (!(Test-Path $SecureFile)){
@@ -201,7 +232,7 @@ $service_policies    = ($config["SECURITY"]).service_policies
 $ntp_servers = (($config["NTP"]).ntp_servers).Split(',')
 $ntp_keys    = (($config["NTP"]).ntp_keys).Split(',')
 
-# SNMP v1/v2
+# SNMP
 
 $snmp_enable    = Get-TrueFalse -YesNo (($config["SNMP"]).snmp_enable)
 $traps_enable   = Get-TrueFalse -YesNo (($config["SNMP"]).traps_enable)
@@ -215,9 +246,7 @@ if ($snmp_community.Length -eq 0) { $snmp_community = 'public'}
 $snmpv3_host          = ($config["SNMPV3"]).snmpv3_host
 $usm_user_name        = ($config["SNMPV3"]).usm_user_name
 $usm_auth_password    = ($config["SNMPV3"]).usm_auth_password
-$usm_auth_protocol    = ($config["SNMPV3"]).usm_auth_protocol
 $usm_privacy_password = ($config["SNMPV3"]).usm_privacy_password
-$usm_privacy_protocol = ($config["SNMPV3"]).usm_privacy_protocol
 
 # PASSWORDCOMPLEXITY
 
@@ -259,6 +288,17 @@ $auth_domain_accounts = (($config["DOMAINACCOUNTS"]).accounts).Split(',')
 $audit_cli    = Get-TrueFalse -YesNo (($config["AUDIT"]).cli)
 $audit_http   = Get-TrueFalse -YesNo (($config["AUDIT"]).http)
 $audit_ontapi = Get-TrueFalse -YesNo (($config["AUDIT"]).ontapi)
+
+# AUDITSVM
+
+$audit_volume_name = ($config["AUDITSVM"]).volume_name
+$audit_volume_sizeGB = ($config["AUDITSVM"]).volume_sizeGB
+$audit_volsize = Convert-UnitsToBytes -Size $audit_volume_sizeGB -Unit GB
+$audit_path = ($config["AUDITSVM"]).path
+$audit_rotate_sizeMB = ($config["AUDITSVM"]).rotate_sizeMB
+$audit_rotate_size = Convert-UnitsToBytes -Size $audit_rotate_sizeMB -Unit MB
+$audit_rotate_limit = ($config["AUDITSVM"]).rotate_limit
+$audit_log_format = ($config["AUDITSVM"]).log_format
 
 # LOGGING
 
@@ -303,7 +343,7 @@ if (($log_ipaddress.Length -gt 0) -and ($log_facility.Length -gt 0) -and ($log_i
 
 # -------------------- Start --------------------
 
-$inc = 0
+$inc = 1
 Clear-Host
 
 # -------------------- Ping Cluster IP --------------------
@@ -370,8 +410,7 @@ Write-Host -ForegroundColor Gray    " ------------------------------------------
 
 # -------------------- STIG V-246922: Concurrent Sessions --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Session Limit   `t`t" -NoNewline
 
@@ -393,8 +432,7 @@ Write-Host -ForegroundColor White $concurrent_sessions
 
 # -------------------- STIG V-246923/V-246959 : Session Timeout (Lock) --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Session Timeout   `t`t" -NoNewline
 
@@ -414,8 +452,7 @@ Write-Host -ForegroundColor White "$session_timeout minutes"
 
 # -------------------- STIG V-246925/V-246964 : Audit Account-enabling actions --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Cluster Logging `t`t" -NoNewline
 
@@ -466,8 +503,7 @@ if ($config_logging) {
 
 # -------------------- STIG V-246931 :  Consecutive Failed Logon Attempts --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Login Attempts    `t`t" -NoNewline
 
@@ -513,8 +549,7 @@ Write-Host -ForegroundColor White $max_login_attempts
 
 # -------------------- STIG V-246932 : Banner & Message of the Day --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Banner & MOTD    `t`t" -NoNewline
 
@@ -551,10 +586,9 @@ Write-Host -ForegroundColor Green "SET"
 
 # -------------------- STIG:  V-246935 : Audit Guarantee --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
-Write-Host -ForegroundColor Cyan " Audit Guarantee  `t`t" -NoNewline
+Write-Host -ForegroundColor Cyan " ONTAP Audit  `t`t" -NoNewline
 
 # Enable/Disable Auditing for CLI, HTTP, and ONTAPI
 
@@ -571,74 +605,240 @@ $vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
 
 Write-Host -ForegroundColor White "CLI: $audit_cli  HTTP: $audit_http  ONTAPI: $audit_ontapi"
 
-<#
+#####
 
-# Check for SMB SVMs
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
+Write-Host -ForegroundColor Cyan " SVM Audit - SMB/NFS `t" -NoNewline
 
-$vUrl = $apiUri + '/svm/svms?cifs.enabled=true'
+$eligible = 0
 
-$vResult = Invoke-ONTAP -Method Get -URL $vUrl
+# Get SVMs
 
-# Check each SMB SVM...
+$vUrl = $apiUri + "/svm/svms?fields=name,cifs.enabled,nfs.enabled,aggregates&subtype=default"
+$svms = Invoke-ONTAP -Method Get -URL $vUrl
 
-if ($vResult.num_records -gt 0) {
+foreach ($rec IN $svms.records){
 
-    $svm_audit_false = @()
+    $svmname = $rec.name
+    $cifs    = $rec.cifs.enabled
+    $nfs     = $rec.nfs.enabled
+    $aggr    = $rec.aggregates[0].name
 
-    foreach ($svm IN $vResult.records) {
+    # Get Audit Settings for SVM
 
-            $vUrl2 = $apiUri + "/private/cli/vserver/audit?audit-guarantee=false&vserver=$($svm.name)"
+    $vUrl = $apiUri + "/protocols/audit?fields=*&svm.name=$svmname"
+    $audit = Invoke-ONTAP -Method Get -URL $vUrl
 
-            $vResult2 = Invoke-ONTAP -Method Get -URL $vUrl2
+    # No audit settings found and SVM is cifs or nfs enabled
 
-            if ($vResult2.num_records -gt 0) {
+    if ( ($audit.num_records -eq 0) -and (($cifs -or $nfs)) ) {
 
-                if ($svm.audit_guarantee -eq $false) {
-                    $svm_audit_false += $svm.name
+        # Get '{svmname}_audit' Export Policy with Rule
+
+        $audit_policy = $svmname + '_audit'
+
+        $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&return_records=false"
+
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        # Policy Does Not Exist - Create Policy
+
+        if ($VResult.num_records -eq 0) {
+
+            $vUrl = $apiUri + "/protocols/nfs/export-policies"
+
+            $vBody = @{
+                name = $audit_policy
+                svm = @{
+                    name = "$svmname"
                 }
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vUrl = $apiUri + "/protocols/nfs/export-policies"
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+            # Get ID for export policy
+
+            $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&fields=*&return_records=true"
+
+            $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+            $exp_ID = $vResult.records[0].id
+
+            # Add Export Policy Rule
+
+            $vRule = @{
+                clients = @(
+                    @{
+                        match = "0.0.0.0/0"
+                    }
+                )
+                protocols = @(
+                    "any"
+                )
+                ro_rule = @(
+                    "sys"
+                )
+                rw_rule = @(
+                    "never"
+                )
+                superuser = @(
+                    "sys"
+                )
+            }
+
+            $body = $vRule | ConvertTo-Json -Depth 5
+            $vUrl = $apiUri + "/protocols/nfs/export-policies/" + $exp_ID + '/rules'
+
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+        }
+
+        # Get Volume 
+
+        $svmvolume = $svmname + '_' + $audit_volume_name
+
+        $vUrl = $apiUri + "/storage/volumes?fields=name,nas.path&name=$svmvolume"
+        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+        # Volume Does Not Exist - Create Volume with Export Policy
+
+        if ($vResult.num_records -eq 0) {
+
+            $vBody = @{
+                name = $svmvolume
+                aggregates = @(
+                    @{
+                        name = $aggr
+                    }
+                )
+                svm = @{
+                    name = $svmname
+                }
+                size = $audit_volsize
+                nas = @{
+                    export_policy = @{
+                        name = $audit_policy
+                    }
+                    path = $audit_path
+                    security_style = 'mixed'
+                }
+                guarantee = @{
+                    type = "volume"
+                }
+            }
+
+            $body = $vBody | ConvertTo-Json -Depth 5
+
+            $vUrl = $apiUri + "/storage/volumes"
+            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+            # Monitor Job
+
+            $vUrl = $apiUri + "/cluster/jobs/$($vResult.job.uuid)"
+            $more = $true
+            $pause = 10
+
+            while ($more) {
+
+                $jobResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+                if ($jobResult.state -eq 'failure') {
+
+                    Write-Host -ForegroundColor Red "`n`n $($jobResult.Message) `n`n"
+                    Exit
+
+                } elseif ($jobResult.state -eq 'success') {
+
+                    $pause = 1
+                    $more = $false
+
+                } else {
+
+                    $more = $true
+
+                }
+
+                Start-Sleep -Seconds $pause
 
             }
 
-    }
-
-    if ($svm_audit_false.Count -gt 0) {
-
-        Write-Host -ForegroundColor Gray " OPEN: SMB SVMs Found with Audit Guarantee False"
-
-        $f_status = 'Open'
-        $f_details = 'SMB SVMs Found with Audit Guarantee False'
-
-        foreach ($svmaudit IN $svm_audit_false) {
-            $f_details += "`n- $svmaudit"
         }
 
-        $f_comments = ""
+        # Create Audit Configuration
 
-    } else {
+        $vBody = @{
+            svm = @{
+                name = $svmname
+            }
+            log_path = $audit_path
+            log = @{
+                format = $audit_log_format
+                rotation = @{
+                    size = $audit_rotate_size
+                }
+                retention = @{
+                    count = $audit_rotate_limit
+                }
+            }
+            guarantee = $true
+            enabled = $true
+        }
 
-        Write-Host -ForegroundColor Green " NOT A FINDING"
+        $body = $vBody | ConvertTo-Json -Depth 5
 
-        $f_status = "NotAFinding"
-        $f_details = "SMB SVMs have Audit Guarantee Set to True"
-        $f_comments = ""
+        # Create/Enable Auditing
+
+        $vUrl = $apiUri + "/protocols/audit"
+        $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+        Write-Host -ForegroundColor White "`n    - $svmname`t`t`t" -NoNewline
+        Write-Host -ForegroundColor Green "Audit Configured"
+
+        $eligible++
 
     }
 
-} else {
+    # Audit settings found and SVM is cifs or nfs enabled
 
-    Write-Host -ForegroundColor Gray " NOT APPLICABLE: No SVMs with SMB Protocol Enabled"
+    if ( ($audit.num_records -eq 1) -and (($cifs -or $nfs)) ) {
 
-    $f_status = "NotApplicable"
-    $f_details = "No SVMs with SMB Protocol Enabled"
-    $f_comments = ""
+        $audit_enabled = $audit.records[0].enabled
+        $audit_path = $audit.records[0].log_path
+        $audit_guarantee = $audit.records[0].guarantee
+
+        if (!($audit_guarantee)) {
+
+            # Guarantee - vserver audit modify -vserver $svmname -audit-guarantee true
+
+        }
+
+        if (!($audit_enabled)) {
+
+            # Enable Auditing
+
+        }
+
+        Write-Host -ForegroundColor White "`n    - $svmname`t`t`t" -NoNewline
+        Write-Host -ForegroundColor Green "Audit Configured"
+
+        $eligible++
+
+    }
 
 }
-#>
+
+if ($eligible -eq 0) {
+
+    Write-Host -ForegroundColor White "No Eligible SVMs Found"
+
+}
 
 # -------------------- STIG V-246936 : NTP Servers --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " NTP Servers     `t`t" -NoNewline
 
@@ -711,8 +911,7 @@ if ($ntp_added) {
 
 # -------------------- STIG V-246938 : Time Stamp for Audit Records (UTC/GMT)  --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Time Zone       `t`t" -NoNewline
 
@@ -734,8 +933,7 @@ Write-Host -ForegroundColor White $set_timezone
 
 # -------------------- STIG V-246940 : MultiFactor Authentication (Domain Tunnel) --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " MultiFactor Auth `t`t" -NoNewline
 
@@ -893,8 +1091,7 @@ if ($vResult) {
 
 # -------------------- STIG V-246944 : On-Demand Cluster Configuration Backup --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Config Backup   `t`t" -NoNewline
 
@@ -949,8 +1146,7 @@ if ($vResult.num_records -eq 0) {
 
 # -------------------- STIG V-246946 : Service Policies --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Service Policies `t`t" -NoNewline
 
@@ -1033,8 +1229,7 @@ Write-Host -ForegroundColor Green "UPDATED"
 
 # -------------------- STIG V-246948 : Domain Account with Admin Role --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Domain Accounts `t`t" -NoNewline
 
@@ -1124,8 +1319,7 @@ if ($domain_tunnel) {
 
 # -------------------- STIG V-246958 : Enable/Disable FIPS 140-2 --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " FIPS 140-2     `t`t" -NoNewline
 
@@ -1214,8 +1408,7 @@ if ($body -ne '') {
 
 # -------------------- STIG V-246949 : Enable & Configure SNMP --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " SNMP`t`t`t" -NoNewline
 
@@ -1273,8 +1466,7 @@ if ($snmp -and $snmpv3) {
 
 # Configue SNMP Server
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 Write-Host -ForegroundColor Cyan " Configure SNMP`t`t" -NoNewline
 
 if ($snmp_enable -and $traps_enable ) {
@@ -1412,8 +1604,7 @@ if ($snmp_enable -and $traps_enable ) {
 
 # -------------------- STIG V-246951-V-246955 : Password Complexity --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Password Complexity `t" -NoNewline
 
@@ -1435,8 +1626,7 @@ Write-Host -ForegroundColor White "APPLIED"
 
 # -------------------- STIG V-246926 : Account of Last Resort (Local Admin Account) --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Local Admin    `t`t" -NoNewline
 
@@ -1523,7 +1713,7 @@ foreach ($rec IN $result.records) {
 
         
         $inc++
-        Write-Host -ForegroundColor Gray " $inc." -NoNewline
+        Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
         Write-Host -ForegroundColor Cyan " $($rec.node)  `t`t" -NoNewline
         Write-Host -ForegroundColor Yellow "`t`t REBOOT NEEDED"
 
@@ -1532,8 +1722,7 @@ foreach ($rec IN $result.records) {
 
 # -------------------- Lock/Unlock default admin account --------------------
 
-$inc++
-Write-Host -ForegroundColor Gray " $inc." -NoNewline
+Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
 
 Write-Host -ForegroundColor Cyan " Default Admin Account `t" -NoNewline
 
