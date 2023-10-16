@@ -33,7 +33,7 @@
 <hr>
 
 ### **Provided Scripts**
-* `secure.ps1` - Applies security-related STIG settings and configuration changes to an ONTAP system
+* `secure.ps1` - Applies security-related STIG and Security Hardening Guide settings and configuration changes to an ONTAP system
 * `stig.ps1` - Uses an ONTAP STIG checklist as input, and checks the ONTAP system for each vulnerability. Results are saved to a completed STIG checkist as output (.ckl).  
 <hr>
 
@@ -69,18 +69,20 @@
 8. Configure Audit Account-enabling actions
 9. Set Consecutive Failed Logon Attempts
 10. Set Banner & Message of the Day for Cluster and SVMs
-11. Add NTP Servers
-12. Set Time Stamp for Audit Records (UTC/GMT)
-13. Configure MultiFactor Authentication
-14. On-Demand Cluster Configuration Backup
-15. Service Policies (Packet Filtering)
-16. Add Domain Accounts with Admin Role
-17. Enable/Disable FIPS 140-2
-18. Enable & Configure SNMP
-19. Set Password Complexity Minimums
-20. Create Account of Last Resort (1 Local Admin Account)
-21. Check if Reboot Required
-22. Lock / Unlock Default `admin` Account
+11. ONTAP Audit (CLI/HTTP/ONTAPI)
+12. SVM Audit Configuration (NAS SVMs)
+13. Add NTP Servers
+14. Set Time Stamp for Audit Records (UTC/GMT)
+15. Configure MultiFactor Authentication
+16. On-Demand Cluster Configuration Backup
+17. Service Policies (Packet Filtering)
+18. Add Domain Accounts with Admin Role
+19. Enable/Disable FIPS 140-2
+20. Enable & Configure SNMP
+21. Set Password Complexity Minimums
+22. Create Account of Last Resort (1 Local Admin Account)
+23. Check if Reboot Required
+24. Lock / Unlock Default `admin` Account
 
 **<u>stig.ps1</u>**
 
@@ -120,7 +122,8 @@ Concurrent Sessions
 Session Timeout
 Cluster Logging
 Banner & MOTD
-Audit Guarantee
+ONTAP Audit (CLI/HTTP/ONTAPI)
+SVM Audit Configuration (NAS)
 NTP Servers
 Time Zone
 Multifactor Authentication
