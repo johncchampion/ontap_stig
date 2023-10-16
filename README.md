@@ -33,7 +33,7 @@
 <hr>
 
 ### **Provided Scripts**
-* `secure.ps1` - Applies security-related STIG and Security Hardening Guide settings and configuration changes to an ONTAP system
+* `secure.ps1` - Applies security-related STIG settings and configuration changes to an ONTAP system
 * `stig.ps1` - Uses an ONTAP STIG checklist as input, and checks the ONTAP system for each vulnerability. Results are saved to a completed STIG checkist as output (.ckl).  
 <hr>
 
