@@ -14,12 +14,13 @@
 		1. Verify blank STIG checklist and .ini file path/name
         2. Create subdirectory for STIG files/checklists
         3. Process {stig}.ini file
-        4. Ping cluster IP (verify reachable)
-        5. Check REST API connection to cluster - Get cluster name and ONTAP version
-        6. Open a new checklist file (XML) for output using blank as template
-        7. Add host name, host IP, domain, and ONTAP version
-        8. Process (loop) through each vulnerability in the checklist
-        9. Check the settings in the .ini file related to the current vulnerability number
+        4. Verify Settings
+        5. Ping cluster IP (verify reachable)
+        6. Check REST API connection to cluster - Get cluster name and ONTAP version
+        7. Open a new checklist file (XML) for output using blank as template
+        8. Add host name, host IP, domain, and ONTAP version
+        9. Process (loop) through each vulnerability in the checklist
+        10. Check the settings in the .ini file related to the current vulnerability number
         11. If 'override_status' is NOT BLANK, then skip the check and use the override_status, details, and comments in the .ini
         12. If 'override_status' is BLANK, then run the compliance check
         13. Update the new checklist with the result (Open, Not A Finding, Not Applicable, Not Reviewed) along with any Details or Comments
@@ -53,10 +54,6 @@ param (
     [Parameter(Mandatory = $True)]
     [string]$Login
 )
-
-# --------------------- TODO LIST ---------------------
-
-# Verify .INI Settings
 
 # --------------------- Functions ---------------------
 
@@ -297,6 +294,74 @@ $config = Get-ConfigSettings "$StigFile"
 # Cluster
 
 $domain = ($config["CLUSTER"]).domain
+
+# --------------------- Validation Lists ---------------------
+
+$valid_override_status =  @('','O'.'NAF','NA','NR')
+$vulnerabilities_list  =  @()
+$vulnerabilities_list += 'V-246922'
+$vulnerabilities_list += 'V-246923'
+$vulnerabilities_list += 'V-246925'
+$vulnerabilities_list += 'V-246926'
+$vulnerabilities_list += 'V-246927'
+$vulnerabilities_list += 'V-246930'
+$vulnerabilities_list += 'V-246931'
+$vulnerabilities_list += 'V-246932'
+$vulnerabilities_list += 'V-246933'
+$vulnerabilities_list += 'V-246935'
+$vulnerabilities_list += 'V-246936'
+$vulnerabilities_list += 'V-246938'
+$vulnerabilities_list += 'V-246939'
+$vulnerabilities_list += 'V-246940'
+$vulnerabilities_list += 'V-246944'
+$vulnerabilities_list += 'V-246945'
+$vulnerabilities_list += 'V-246946'
+$vulnerabilities_list += 'V-246947'
+$vulnerabilities_list += 'V-246938'
+$vulnerabilities_list += 'V-246939'
+$vulnerabilities_list += 'V-246950'
+$vulnerabilities_list += 'V-246951'
+$vulnerabilities_list += 'V-246952'
+$vulnerabilities_list += 'V-246953'
+$vulnerabilities_list += 'V-246954'
+$vulnerabilities_list += 'V-246955'
+$vulnerabilities_list += 'V-246958'
+$vulnerabilities_list += 'V-246959'
+$vulnerabilities_list += 'V-246964'
+
+# -------------------- Validate Settings --------------------
+
+$err_msgs = @()
+
+foreach ($v IN $vulnerabilities_list) {
+
+    $setting = ($config[$v]).override_status
+
+    if (!($valid_override_status.Contains($setting))) {
+
+        $err_msgs += " $v : Invalid Override Status ($setting)"
+
+    }
+
+}
+
+# -------------------- Display Error Messages - Exit if Errors --------------------
+
+if ($err_msgs.Count -gt 0) {
+
+    Clear-Host
+    Write-Host
+
+    foreach ($msg IN $err_msgs) {
+
+        Write-Host -ForegroundColor Yellow " *** $msg "
+
+    }
+
+    Write-Host
+    exit
+
+}
 
 # --------------------- Start ---------------------
 

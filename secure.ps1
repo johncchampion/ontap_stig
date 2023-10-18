@@ -64,7 +64,6 @@ param (
 
 # -------------------- TODO LIST --------------------
 
-# Verify .INI settings
 # Check if only 1 local admin account before locking
 
 # -------------------- Functions --------------------
@@ -222,10 +221,9 @@ $session_timeout     = ($config["SECURITY"]).session_timeout
 $max_login_attempts  = ($config["SECURITY"]).max_login_attempts
 $banner              = ($config["SECURITY"]).banner
 $motd                = ($config["SECURITY"]).motd
-$valid_timezones     = (($config["SECURITY"]).valid_timezones).Split(',')
 $set_timezone        = ($config["SECURITY"]).set_timezone
-$fips                = ($config["SECURITY"]).fips
-$service_policies    = ($config["SECURITY"]).service_policies
+$fips                = (($config["SECURITY"]).fips).ToLower()
+$service_policies    = (($config["SECURITY"]).service_policies).ToLower()
 
 # NTP
 
@@ -238,7 +236,6 @@ $snmp_enable    = Get-TrueFalse -YesNo (($config["SNMP"]).snmp_enable)
 $traps_enable   = Get-TrueFalse -YesNo (($config["SNMP"]).traps_enable)
 $trap_host      = ($config["SNMP"]).trap_host
 $snmp_community = ($config["SNMP"]).community
-
 if ($snmp_community.Length -eq 0) { $snmp_community = 'public'}
 
 # SNMP v3
@@ -254,7 +251,7 @@ $minlength    = ($config["PASSWORDCOMPLEXITY"]).minlength
 $minuppercase = ($config["PASSWORDCOMPLEXITY"]).minuppercase
 $minlowercase = ($config["PASSWORDCOMPLEXITY"]).minlowercase
 $minspecial   = ($config["PASSWORDCOMPLEXITY"]).minspecial
-$alphanum     = ($config["PASSWORDCOMPLEXITY"]).alphanum
+$alphanum     = (($config["PASSWORDCOMPLEXITY"]).alphanum).ToLower()
 
 # LOCALADMIN
 
@@ -298,7 +295,7 @@ $audit_path = ($config["AUDITSVM"]).path
 $audit_rotate_sizeMB = ($config["AUDITSVM"]).rotate_sizeMB
 $audit_rotate_size = Convert-UnitsToBytes -Size $audit_rotate_sizeMB -Unit MB
 $audit_rotate_limit = ($config["AUDITSVM"]).rotate_limit
-$audit_log_format = ($config["AUDITSVM"]).log_format
+$audit_log_format = (($config["AUDITSVM"]).log_format).ToLower()
 
 # LOGGING
 
@@ -309,36 +306,106 @@ $log_dest_port = ($config["LOGGING"]).dest_port
 $log_protocol  = ($config["LOGGING"]).protocol
 $log_verify    = Get-TrueFalse -YesNo (($config["LOGGING"]).verify)
 
-# -------------------- Verify Settings --------------------
+# -------------------- Validation Lists --------------------
 
-# Time Zone
+$valid_timezones    = @('Etc/UTC','UTC','GMT','GMT+0','GMT-0','GMT0','Greenwich')
+$valid_Enabled      = @('enabled','disabled')
+$valid_Enable       = @('enable','disable')
+$valid_Filter       = @('filter','unfilter')
+$valid_Format       = @('evtx','xml')
+$valid_log_facility = @('kern','user','local0','local1','local2','local3','local4','local5','local6','local7')
+$valid_log_protocol = @('udp_unencrypted','tcp_unencrypted','tcp_encrypted')
 
-if (!($valid_timezones.contains($set_timezone))) {
+# -------------------- Validate Settings --------------------
 
-    Write-Host -ForegroundColor Red " Time Zone $set_timezone Not Valid"
-    exit
+$err_msgs = @()
 
-}
+if (!($concurrent_sessions -match "\d+"))         { $err_msgs += " Invalid Concurrent Sessions Setting ($concurrnet_sessions)"}
+if (!($session_timeout -match "\d+"))             { $err_msgs += " Invalid Session Timeout Setting ($session_timeout)"}
+if (!($max_login_attempts -match "\d+"))          { $err_msgs += " Invalid Max Login Attempts Setting ($max_login_attempts)"}
+if (!($valid_timezones.Contains($set_timezone)))  { $err_msgs += " Time Zone $set_timezone Not Valid ($set_timezone)" }
+if (!($valid_Enable.Contains($fips)))             { $err_msgs += " FIPS 140-2 Setting Not Valid ($fips) - Must Be 'Enable' or 'Disable'" }
+if (!($valid_Filter).Contains($service_policies)) { $err_msgs += " Invalid Service Policy Filter Settting - Must Be 'filter' or 'unfilter'" }
+if (!($minlength -match "\d+"))                   { $err_msgs += " Invalid Password Minimum Length Setting ($minlength)"}
+if (!($minuppercase -match "\d+"))                { $err_msgs += " Invalid Password Minimum Uppercase Characters Setting ($minuppercase)"}
+if (!($minlowercase -match "\d+"))                { $err_msgs += " Invalid Password Minimum Lowercase Characters Setting ($minlowercase)"}
+if (!($minspecial -match "\d+"))                  { $err_msgs += " Invalid Password Minimum Special Characters Setting ($minspecial)"}
+if (!($valid_Enabled).Contains($alphanum))        { $err_msgs += " Password Complexity AlphaNum Invalid - Must Be 'Enabled' or 'Disabled'" }
+if ((!($trap_host -as [IPAddress] -as [Bool])) -and $trap_host.Length -gt 0 ) { $err_msgs += " INvalid Trap Host IP Address ($trap_host)"}
 
-# Password Complexity
-
-$valid_alphanum = @('enabled','disabled')
-if (!($valid_alphanum.Contains($alphanum))) {
-
-    Write-Host -ForegroundColor Red ' Password Complexity AlphaNum Invalid - Must Be enabled or disabled'
-    exit
-
+foreach($ntp IN $ntp_servers) { 
+    if ((!($ntp -as [IPAddress] -as [Bool])) -and $ntp -ne '') { 
+        $err_msgs += " Invalid NTP Server IP Address ($ntp)" 
+    } 
 }
 
 # Configure Logging
-
-if (($log_ipaddress.Length -gt 0) -and ($log_facility.Length -gt 0) -and ($log_ipspace.Length -gt 0) -and ($log_dest_port.Length -gt 0) -and ($log_protocol.Length -gt 0) -and ($log_verify.Length -gt 0)) {
+if (($log_ipaddress.Length -gt 0) -and ($log_facility.Length -gt 0) -and ($log_ipspace.Length -gt 0) -and `
+    ($log_dest_port.Length -gt 0) -and ($log_protocol.Length -gt 0) -and ($log_verify.Length -gt 0)) 
+{
 
     $config_logging = $true
+
+    if (!($log_ipaddress -as [IPAddress] -as [Bool]))   { $err_msgs += " Invalid Cluster Log IP Address ($log_ipaddress)"}
+    if (!($valid_log_facility.Contains($log_facility))) { $err_msgs += " Invalid Cluster Log Facility ($log_facility)"}
+    if (!($valid_log_protocol.Contains($log_protocol))) { $err_msgs += " Invalid Cluster Log Protocol ($log_protocol)"}
+
 } else {
 
     $config_logging = $false
 
+}
+
+# Configure Domain Tunnel (Domain Authentication)
+if (($auth_svm_name.Length -gt 0)     -and ($auth_ad_name.Length -gt 0)             -and `
+    ($auth_ad_fqdn.Length -gt 0)      -and ($auth_ad_join_account.Length -gt 0)     -and `
+    ($auth_lif_name.Length -gt 0)     -and ($auth_lif_ip.Length -gt 0)              -and `
+    ($auth_lif_netmask.Length -gt 0)  -and ($auth_lif_gateway.Length -gt 0)         -and `
+    ($auth_lif_ipspace.Length -gt 0)  -and ($auth_lif_broadcastdomain.Length -gt 0) -and`
+    ($auth_lif_homenode.Length -gt 0) -and ($auth_dns_domains.Length -gt 0)         -and `
+    ($auth_dns_servers.Length -gt 0))
+{
+
+    $auth_tunnel = $true
+
+    if (!($auth_lif_ip -as [IPAddress] -as [Bool]))      { $err_msgs += " Invalid Domain Auth IP Address ($auth_lif_ip)"}
+    if (!($auth_lif_gateway -as [IPAddress] -as [Bool])) { $err_msgs += " Invalid Domain Auth Gateway ($auth_lif_gateway)"}
+
+} else {
+
+    $auth_tunnel = $false
+
+}
+
+# Configure Auditing
+if (($audit_volume_name.Length -gt 0)   -and ($audit_volume_sizeGB.Length -gt 0) -and `
+    ($audit_volsize.Length -gt 0)       -and ($audit_path.Length -gt 0)          -and `
+    ($audit_rotate_sizeMB.Length -gt 0) -and ($audit_rotate_limit.Length -gt 0)  -and `
+    ($audit_log_format.Length -gt 0))
+{
+    $config_audit = $true
+
+    if (!($audit_volume_sizeGB -match "\d+"))         { $err_msgs += " Invalid Audit Volume Size Setting ($audit_volume_sizeGB)"}
+    if (!($audit_rotate_sizeMB -match "\d+"))         { $err_msgs += " Invalid Audit Rotate Size Setting ($audit_rotate_sizeMB)"}
+    if (!($audit_rotate_limit -match "\d+"))          { $err_msgs += " Invalid Audit Rotate Limit Setting ($audit_rotate_limit)"}
+    if (!($valid_Format.Contains($audit_log_format))) { $err_mesgs += " Invalid Audit Log Format ($audit_log_format)"}
+
+} else {
+
+    $config_audit = $false
+
+}
+
+# -------------------- Display Error Messages - Exit if Errors --------------------
+
+if ($err_msgs.Count -gt 0) {
+    Clear-Host
+    Write-Host
+    foreach ($msg IN $err_msgs) {
+        Write-Host -ForegroundColor Yellow " *** $msg "
+    }
+    Write-Host
+    exit
 }
 
 # -------------------- Start --------------------
@@ -371,6 +438,13 @@ $script:header = @{
 
 Write-Host
 $pass = Read-Host " Enter [$Login] Password " -AsSecureString
+
+# If Domain Tunnel Settings validated and AD Join Account Password is missing...
+if ($auth_tunnel -and ($auth_ad_join_password.Length -eq 0)) {
+    Write-Host
+    $ad_pass = Read-Host " Enter [$auth_ad_name\$auth_ad_join_account] Password " -AsSecureString
+    $auth_ad_join_password = = ConvertFrom-SecureString -SecureString $ad_pass  -AsPlainText
+}
 
 Clear-Host
 Write-Host
@@ -605,234 +679,267 @@ $vResult = Invoke-ONTAP -Method Patch -URL $vUrl -Body $body
 
 Write-Host -ForegroundColor White "CLI: $audit_cli  HTTP: $audit_http  ONTAPI: $audit_ontapi"
 
-#####
+# -------------------- Configure Auditing on NAS SVMs --------------------
 
 Write-Host -ForegroundColor Gray " $(($inc++))`." -NoNewline
-Write-Host -ForegroundColor Cyan " SVM Audit - SMB/NFS `t" -NoNewline
+Write-Host -ForegroundColor Cyan " SVM Audit - NAS`t`t" -NoNewline
 
-$eligible = 0
+if ($config_audit) {
 
-# Get SVMs
+    Write-Host
 
-$vUrl = $apiUri + "/svm/svms?fields=name,cifs.enabled,nfs.enabled,aggregates&subtype=default"
-$svms = Invoke-ONTAP -Method Get -URL $vUrl
+    $eligible = 0
 
-foreach ($rec IN $svms.records){
+    # Get SVMs
 
-    $svmname = $rec.name
-    $cifs    = $rec.cifs.enabled
-    $nfs     = $rec.nfs.enabled
-    $aggr    = $rec.aggregates[0].name
+    $vUrl = $apiUri + "/svm/svms?fields=name,cifs.enabled,nfs.enabled,aggregates&subtype=default"
+    $svms = Invoke-ONTAP -Method Get -URL $vUrl
 
-    # Get Audit Settings for SVM
+    foreach ($rec IN $svms.records){
 
-    $vUrl = $apiUri + "/protocols/audit?fields=*&svm.name=$svmname"
-    $audit = Invoke-ONTAP -Method Get -URL $vUrl
+        $svmname = $rec.name
+        $cifs    = $rec.cifs.enabled
+        $nfs     = $rec.nfs.enabled
+        $aggr    = $rec.aggregates[0].name
 
-    # No audit settings found and SVM is cifs or nfs enabled
+        # Get Audit Settings for SVM
 
-    if ( ($audit.num_records -eq 0) -and (($cifs -or $nfs)) ) {
+        $vUrl = $apiUri + "/protocols/audit?fields=*&svm.name=$svmname"
+        $audit = Invoke-ONTAP -Method Get -URL $vUrl
 
-        # Get '{svmname}_audit' Export Policy with Rule
+        # No audit settings found and SVM is cifs or nfs enabled
 
-        $audit_policy = $svmname + '_audit'
+        if ( ($audit.num_records -eq 0) -and (($cifs -or $nfs)) ) {
 
-        $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&return_records=false"
+            # Get '{svmname}_audit' Export Policy with Rule
 
-        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+            $audit_policy = $svmname + '_audit'
 
-        # Policy Does Not Exist - Create Policy
-
-        if ($VResult.num_records -eq 0) {
-
-            $vUrl = $apiUri + "/protocols/nfs/export-policies"
-
-            $vBody = @{
-                name = $audit_policy
-                svm = @{
-                    name = "$svmname"
-                }
-            }
-
-            $body = $vBody | ConvertTo-Json -Depth 5
-
-            $vUrl = $apiUri + "/protocols/nfs/export-policies"
-            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
-
-            # Get ID for export policy
-
-            $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&fields=*&return_records=true"
+            $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&return_records=false"
 
             $vResult = Invoke-ONTAP -Method Get -URL $vUrl
 
-            $exp_ID = $vResult.records[0].id
+            # Policy Does Not Exist - Create Policy
 
-            # Add Export Policy Rule
+            if ($VResult.num_records -eq 0) {
 
-            $vRule = @{
-                clients = @(
-                    @{
-                        match = "0.0.0.0/0"
+                $vUrl = $apiUri + "/protocols/nfs/export-policies"
+
+                $vBody = @{
+                    name = $audit_policy
+                    svm = @{
+                        name = "$svmname"
                     }
-                )
-                protocols = @(
-                    "any"
-                )
-                ro_rule = @(
-                    "sys"
-                )
-                rw_rule = @(
-                    "never"
-                )
-                superuser = @(
-                    "sys"
-                )
+                }
+
+                $body = $vBody | ConvertTo-Json -Depth 5
+
+                $vUrl = $apiUri + "/protocols/nfs/export-policies"
+                $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+                # Get ID for export policy
+
+                $vUrl = $apiUri + "/protocols/nfs/export-policies?svm.name=$svmname&name=$audit_policy&fields=*&return_records=true"
+
+                $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+                $exp_ID = $vResult.records[0].id
+
+                # Add Export Policy Rule
+
+                $vRule = @{
+                    clients = @(
+                        @{
+                            match = "0.0.0.0/0"
+                        }
+                    )
+                    protocols = @(
+                        "any"
+                    )
+                    ro_rule = @(
+                        "sys"
+                    )
+                    rw_rule = @(
+                        "never"
+                    )
+                    superuser = @(
+                        "sys"
+                    )
+                }
+
+                $body = $vRule | ConvertTo-Json -Depth 5
+                $vUrl = $apiUri + "/protocols/nfs/export-policies/" + $exp_ID + '/rules'
+
+                $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
             }
 
-            $body = $vRule | ConvertTo-Json -Depth 5
-            $vUrl = $apiUri + "/protocols/nfs/export-policies/" + $exp_ID + '/rules'
+            # Get Volume 
 
-            $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+            $svmvolume = $svmname + '_' + $audit_volume_name
 
-        }
+            $vUrl = $apiUri + "/storage/volumes?fields=name,nas.path&name=$svmvolume"
+            $vResult = Invoke-ONTAP -Method Get -URL $vUrl
 
-        # Get Volume 
+            # Volume Does Not Exist - Create Volume with Export Policy
 
-        $svmvolume = $svmname + '_' + $audit_volume_name
+            if ($vResult.num_records -eq 0) {
 
-        $vUrl = $apiUri + "/storage/volumes?fields=name,nas.path&name=$svmvolume"
-        $vResult = Invoke-ONTAP -Method Get -URL $vUrl
+                $vBody = @{
+                    name = $svmvolume
+                    aggregates = @(
+                        @{
+                            name = $aggr
+                        }
+                    )
+                    svm = @{
+                        name = $svmname
+                    }
+                    size = $audit_volsize
+                    nas = @{
+                        export_policy = @{
+                            name = $audit_policy
+                        }
+                        path = $audit_path
+                        security_style = 'mixed'
+                    }
+                    guarantee = @{
+                        type = "volume"
+                    }
+                }
 
-        # Volume Does Not Exist - Create Volume with Export Policy
+                $body = $vBody | ConvertTo-Json -Depth 5
 
-        if ($vResult.num_records -eq 0) {
+                $vUrl = $apiUri + "/storage/volumes"
+                $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
+
+                # Monitor Job
+
+                $vUrl = $apiUri + "/cluster/jobs/$($vResult.job.uuid)"
+                $more = $true
+                $pause = 10
+
+                while ($more) {
+
+                    $jobResult = Invoke-ONTAP -Method Get -URL $vUrl
+
+                    if ($jobResult.state -eq 'failure') {
+
+                        Write-Host -ForegroundColor Red "`n`n $($jobResult.Message) `n`n"
+                        Exit
+
+                    } elseif ($jobResult.state -eq 'success') {
+
+                        $pause = 1
+                        $more = $false
+
+                    } else {
+
+                        $more = $true
+
+                    }
+
+                    Start-Sleep -Seconds $pause
+
+                }
+
+            }
+
+            # Create Audit Configuration
 
             $vBody = @{
-                name = $svmvolume
-                aggregates = @(
-                    @{
-                        name = $aggr
-                    }
-                )
                 svm = @{
                     name = $svmname
                 }
-                size = $audit_volsize
-                nas = @{
-                    export_policy = @{
-                        name = $audit_policy
+                log_path = $audit_path
+                log = @{
+                    format = $audit_log_format
+                    rotation = @{
+                        size = $audit_rotate_size
                     }
-                    path = $audit_path
-                    security_style = 'mixed'
+                    retention = @{
+                        count = $audit_rotate_limit
+                    }
                 }
-                guarantee = @{
-                    type = "volume"
-                }
+                guarantee = $true
+                enabled = $true
             }
 
             $body = $vBody | ConvertTo-Json -Depth 5
 
-            $vUrl = $apiUri + "/storage/volumes"
+            # Create/Enable Auditing
+
+            $vUrl = $apiUri + "/protocols/audit"
             $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
 
-            # Monitor Job
+            Write-Host -ForegroundColor White "    - $svmname`t`t`t" -NoNewline
+            Write-Host -ForegroundColor Green "CONFIGURED"
 
-            $vUrl = $apiUri + "/cluster/jobs/$($vResult.job.uuid)"
-            $more = $true
-            $pause = 10
-
-            while ($more) {
-
-                $jobResult = Invoke-ONTAP -Method Get -URL $vUrl
-
-                if ($jobResult.state -eq 'failure') {
-
-                    Write-Host -ForegroundColor Red "`n`n $($jobResult.Message) `n`n"
-                    Exit
-
-                } elseif ($jobResult.state -eq 'success') {
-
-                    $pause = 1
-                    $more = $false
-
-                } else {
-
-                    $more = $true
-
-                }
-
-                Start-Sleep -Seconds $pause
-
-            }
+            $eligible++
 
         }
 
-        # Create Audit Configuration
+        # Audit settings found and SVM is cifs or nfs enabled
 
-        $vBody = @{
-            svm = @{
-                name = $svmname
-            }
-            log_path = $audit_path
-            log = @{
-                format = $audit_log_format
-                rotation = @{
-                    size = $audit_rotate_size
+        if ( ($audit.num_records -eq 1) -and (($cifs -or $nfs)) ) {
+
+            $svm_uuid        = $audit.records[0].svm.uuid
+            $audit_enabled   = $audit.records[0].enabled
+            $audit_path      = $audit.records[0].log_path
+            $audit_guarantee = $audit.records[0].guarantee
+
+            if (!($audit_guarantee)) {
+
+                # Guarantee - vserver audit modify -vserver $svmname -audit-guarantee true
+
+                $vUrlAudit = $apiUri + "/protocols/audit/$svm_uuid"
+
+                $vBody = @{
+                    guarantee = $true
                 }
-                retention = @{
-                    count = $audit_rotate_limit
-                }
+                $body = $vBody | ConvertTo-Json -Depth 5
+
+                $aResult = Invoke-ONTAP -Method Patch -URL $vUrlAudit -Body $body
+
+                $audit_guarantee = $true
+
             }
-            guarantee = $true
-            enabled = $true
+
+            if (!($audit_enabled)) {
+
+                # Enable Auditing
+
+                $vUrlAudit = $apiUri + "/protocols/audit/$svm_uuid"
+
+                $vBody = @{
+                    enabled = $true
+                }
+                $body = $vBody | ConvertTo-Json -Depth 5
+
+                $aResult = Invoke-ONTAP -Method Patch -URL $vUrlAudit -Body $body
+
+                $audit_enabled = $true
+
+            }
+
+            Write-Host -ForegroundColor White "    - $svmname`t`t`t" -NoNewline
+            Write-Host -ForegroundColor White "CONFIGURED - Guarantee: $audit_guarantee  Enabled: $audit_enabled"
+
+            $eligible++
+
         }
-
-        $body = $vBody | ConvertTo-Json -Depth 5
-
-        # Create/Enable Auditing
-
-        $vUrl = $apiUri + "/protocols/audit"
-        $vResult = Invoke-ONTAP -Method Post -URL $vUrl -Body $body
-
-        Write-Host -ForegroundColor White "`n    - $svmname`t`t`t" -NoNewline
-        Write-Host -ForegroundColor Green "Audit Configured"
-
-        $eligible++
 
     }
 
-    # Audit settings found and SVM is cifs or nfs enabled
+    if ($eligible -eq 0) {
 
-    if ( ($audit.num_records -eq 1) -and (($cifs -or $nfs)) ) {
-
-        $audit_enabled = $audit.records[0].enabled
-        $audit_path = $audit.records[0].log_path
-        $audit_guarantee = $audit.records[0].guarantee
-
-        if (!($audit_guarantee)) {
-
-            # Guarantee - vserver audit modify -vserver $svmname -audit-guarantee true
-
-        }
-
-        if (!($audit_enabled)) {
-
-            # Enable Auditing
-
-        }
-
-        Write-Host -ForegroundColor White "`n    - $svmname`t`t`t" -NoNewline
-        Write-Host -ForegroundColor Green "Audit Configured"
-
-        $eligible++
+        Write-Host -ForegroundColor White "    - No Eligible SVMs Found"
 
     }
 
-}
+} else {
 
-if ($eligible -eq 0) {
-
-    Write-Host -ForegroundColor White "No Eligible SVMs Found"
+    Write-Host -ForegroundColor Yellow "NOT CONFIGURED - Insufficient Settings"
 
 }
 
@@ -951,7 +1058,7 @@ if ($vResult) {
 
     Write-Host -ForegroundColor White 'DOMAIN TUNNEL EXISTS'
 
-} elseif ($auth_svm_name.Length -gt 0) {
+} elseif ($auth_tunnel) {
 
     $create_tunnel = $false
 
@@ -985,6 +1092,7 @@ if ($vResult) {
                 address = $auth_lif_ip
                 netmask = $auth_lif_netmask
             }
+            ipspace = $auth_lif_ipspace
             location = @{
                 broadcast_domain = @{
                     name = $auth_lif_broadcastdomain
@@ -1085,7 +1193,7 @@ if ($vResult) {
 
 } else {
 
-    Write-Host -ForegroundColor Yellow "Auth SVM Not Specified"
+    Write-Host -ForegroundColor Yellow "NOT CONFIGURED - Insufficent Settings"
 
 }
 
@@ -1592,13 +1700,13 @@ if ($snmp_enable -and $traps_enable ) {
 
     if ( (!($snmp)) -and (!($snmpv3)) ) {
 
-        Write-Host -ForegroundColor Yellow "Missing or Invalid Settings"
+        Write-Host -ForegroundColor Yellow "NOT CONFIGURED - Insufficient Settings"
 
     }
 
 } else {
 
-    Write-Host -ForegroundColor Red "Not Enabled"
+    Write-Host -ForegroundColor Yellow "SNMP and/or Trap Host Not Enabled"
 
 }
 
