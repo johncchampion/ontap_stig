@@ -91,18 +91,19 @@
 1. Verify blank STIG checklist and .ini file path/name
 2. Create subdirectory for STIG files/checklists
 3. Process {stig}.ini file
-4. Ping cluster IP (verify reachable)
-5. Check REST API connection to cluster - Get cluster name and ONTAP version
-6. Open a new checklist file (XML) for output using blank as template
-7. Add host name, host IP, domain, and ONTAP version to checklist
-8. Process (loop) through each vulnerability in the checklist
-9. Check the settings in the .ini file related to the current vulnerability number
+4. Verify Settings
+5. Ping cluster IP (verify reachable)
+6. Check REST API connection to cluster - Get cluster name and ONTAP version
+7. Open a new checklist file (XML) for output using blank as template
+8. Add host name, host IP, domain, and ONTAP version to checklist
+9. Process (loop) through each vulnerability in the checklist
+10. Check the settings in the .ini file related to the current vulnerability number
 11. If 'override_status' is NOT BLANK, then skip the check and use the override_status, details, and comments in the .ini
 12. If 'override_status' is BLANK, then run the compliance check
-12. Update the new checklist with the result (Open, Not A Finding, Not Applicable, Not Reviewed) along with any Details or Comments
-13. Once all vulnerabilities have been processed - save/close the new checklist
-14. Screen output shows the name of the saved checklist - ontapstig_{clustername}_YYYY_MM_DD.ckl and totals for each type of finding.
-15. To view the completed checklist, use the DISA STIG Viewer
+13. Update the new checklist with the result (Open, Not A Finding, Not Applicable, Not Reviewed) along with any Details or Comments
+14. Once all vulnerabilities have been processed - save/close the new checklist
+15. Screen output shows the name of the saved checklist - ontapstig_{clustername}_YYYY_MM_DD.ckl and totals for each type of finding.
+16. To view the completed checklist, use the DISA STIG Viewer
 
 <hr>
 
@@ -152,6 +153,7 @@ V1[/StigFile/]
 V2[/New Checklist/]
 T1[[Process<br>Input<br>Files]]
 T3[[Create subdir for<br>checklist output]]
+T31[[Verify Settings]]
 T4[[Ping<br>Cluster]]
 T5[[Add Cluster Info]]
 T55[[Process Checklist]]
@@ -167,7 +169,7 @@ T12[[Display New<br>Checklist<br>Path/Filename<br>and<br>Totals]]
 T99(Done)
 V0 -.-> T1
 V1 -.-> T1
-T1 --> T3 --> T4 --> T5 --> T55 --> T6 
+T1 --> T3 --> T31 --> T4 --> T5 --> T55 --> T6 
 T6 --> T7 --> D1
 D1 --> |Yes| T8 --> T10
 D1 --> |No| T9 --> T10
