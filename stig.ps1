@@ -298,6 +298,7 @@ $domain = ($config["CLUSTER"]).domain
 # --------------------- Validation Lists ---------------------
 
 $valid_override_status =  @('','O'.'NAF','NA','NR')
+
 $vulnerabilities_list  =  @()
 $vulnerabilities_list += 'V-246922'
 $vulnerabilities_list += 'V-246923'

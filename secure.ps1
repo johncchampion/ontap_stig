@@ -222,6 +222,7 @@ $max_login_attempts  = ($config["SECURITY"]).max_login_attempts
 $banner              = ($config["SECURITY"]).banner
 $motd                = ($config["SECURITY"]).motd
 $set_timezone        = ($config["SECURITY"]).set_timezone
+if ($set_timezone.Length -eq 0) { $set_timezone = 'Etc/UTC'}
 $fips                = (($config["SECURITY"]).fips).ToLower()
 $service_policies    = (($config["SECURITY"]).service_policies).ToLower()
 
@@ -236,7 +237,6 @@ $snmp_enable    = Get-TrueFalse -YesNo (($config["SNMP"]).snmp_enable)
 $traps_enable   = Get-TrueFalse -YesNo (($config["SNMP"]).traps_enable)
 $trap_host      = ($config["SNMP"]).trap_host
 $snmp_community = ($config["SNMP"]).community
-if ($snmp_community.Length -eq 0) { $snmp_community = 'public'}
 
 # SNMP v3
 
@@ -1271,7 +1271,6 @@ foreach ($rec IN $vResult.records) {
     $allowed_addresses = @()
 
     $curr_svm = $rec.vserver
-    #$curr_lif = $rec.lif
     $curr_policy = $rec.service_policy
     $curr_address = $rec.address
     $curr_netmask_length = $rec.netmask_length
@@ -1313,7 +1312,6 @@ foreach ($rec IN $vResult.records) {
             $service_rule = $rec3.Split(':')
 
             $_service = ($service_rule[0]).Trim()
-            #$_rule = ($service_rule[1]).Trim()
 
             $vBody = @{
                 "allowed-addresses" = $allowed_addresses
@@ -1324,8 +1322,6 @@ foreach ($rec IN $vResult.records) {
             $vUrl3 = $apiUri + "/private/cli/network/interface/service-policy?vserver=$curr_svm&policy=$curr_policy&service=$_service"
 
             $allowed_result = Invoke-ONTAP -Method Patch -Url $vUrl3 -Body $body -ReturnNullOnError
-
-            # https://kb.netapp.com/onprem/ontap/os/Unable_to_create_a_service_policy_to_limit_data_access_using_the_allowed-addresses_option
 
         }
 
@@ -1643,6 +1639,8 @@ if ($snmp_enable -and $traps_enable ) {
     } 
     
     if ($snmp) {
+
+        if ($snmp_community.Length -eq 0) { $snmp_community = $ClusterName}
 
         # Community Name
 
